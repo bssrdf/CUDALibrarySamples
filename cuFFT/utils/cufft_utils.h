@@ -93,3 +93,12 @@ void scaling_kernel(cufftComplex* data, int element_count, float scale) {
         data[tid].y *= scale;
     }
 }
+
+__global__
+void scaling_kernel_1(cufftReal* data, int element_count, float scale) {
+    const int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    const int stride = blockDim.x * gridDim.x;
+    for (auto i = tid; i<element_count; i+= stride) {
+        data[tid] *= scale;
+    }
+}

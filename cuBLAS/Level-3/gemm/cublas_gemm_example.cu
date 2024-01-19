@@ -79,10 +79,10 @@ int main(int argc, char *argv[]) {
      *       | 7.0 | 8.0 |
      */
 
-    // const std::vector<data_type> A = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-    const std::vector<data_type> A = {1.0f, 4.0f, 2.0f, 5.0f, 3.0f, 6.0f};
-    // const std::vector<data_type> B = {5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f};
-    const std::vector<data_type> B = {5.0f, 9.0f, 6.f, 10.0f, 7.0f, 11.0f, 8.0f, 12.0f};
+    const std::vector<data_type> A = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    // const std::vector<data_type> A = {1.0f, 4.0f, 2.0f, 5.0f, 3.0f, 6.0f};
+    const std::vector<data_type> B = {5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f};
+    // const std::vector<data_type> B = {5.0f, 9.0f, 6.f, 10.0f, 7.0f, 11.0f, 8.0f, 12.0f};
     std::vector<data_type> C(m * n);
     // std::vector<data_type> C(lda * ldb);
     const data_type alpha = 1.0;
@@ -92,14 +92,14 @@ int main(int argc, char *argv[]) {
     data_type *d_B = nullptr;
     data_type *d_C = nullptr;
 
-    cublasOperation_t transa = CUBLAS_OP_T;
-    cublasOperation_t transb = CUBLAS_OP_N;
+    cublasOperation_t transa = CUBLAS_OP_N;
+    cublasOperation_t transb = CUBLAS_OP_T;
 
     printf("A\n");
     // print_matrix(m, k, A.data(), lda);
     for (int i = 0; i < m*k; i++) {
         std::printf("%0.2f " , A.data()[i]);
-        if( (i+1) % k == 0)
+        if( (i+1) % m == 0)
             std::printf("\n");
     }
     printf("=====\n");
@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     // print_matrix(k, n, B.data(), ldb);
     for (int i = 0; i < n*k; i++) {
         std::printf("%0.2f " , B.data()[i]);
-        if( (i+1) % k == 0)
+        if( (i+1) % n == 0)
             std::printf("\n");
     }
 
@@ -132,8 +132,12 @@ int main(int argc, char *argv[]) {
 
     /* step 3: compute */
     CUBLAS_CHECK(
-        cublasSgemm(cublasH, transa, transb, m, n, k, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc));
-        // cublasSgemm(cublasH, transa, transb, m, n, k, &alpha, d_B, lda, d_A, ldb, &beta, d_C, ldc));
+        // cublasSgemm(cublasH, transa, transb, m, n, k, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc));
+        // cublasSgemm(cublasH, transa, transb, 4, 3, 2, &alpha, d_B, 4, d_A, 3, &beta, d_C, 4)); // working but d_c has memory shifted
+        //  cublasSgemm(cublasH, transa, transb, 3, 4, 2, &alpha, d_A, 3, d_B, 4, &beta, d_C, 3)); // working correctly
+         cublasSgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, 3, 4, 2, &alpha, d_A, 3, d_B, 4, &beta, d_C, 3)); // working correctly
+
+
 
     /* step 4: copy data to host */
     CUDA_CHECK(cudaMemcpyAsync(C.data(), d_C, sizeof(data_type) * C.size(), cudaMemcpyDeviceToHost,

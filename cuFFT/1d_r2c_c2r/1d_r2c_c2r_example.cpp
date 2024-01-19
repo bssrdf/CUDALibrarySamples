@@ -53,12 +53,26 @@
 #include <cufft.h>
 #include "cufft_utils.h"
 
+
+
+__global__
+void scaling_kernel_2(cufftComplex* data, int width, int r_thresh, float scale) {    
+    int col = blockIdx.x*blockDim.x + threadIdx.x;
+    int w = min(width, r_thresh);
+    
+	if(col < w ){
+        data[col].x *= scale;
+        data[col].y *= scale;
+    }
+
+}
+
 int main(int argc, char *argv[]) {
     cufftHandle planr2c, planc2r;
     cudaStream_t stream = NULL;
 
-    int fft_size = 8;
-    int batch_size = 2;
+    int fft_size = 9;
+    int batch_size = 1;
     int element_count = batch_size * fft_size;
 
     using scalar_type = float;
@@ -101,10 +115,14 @@ int main(int argc, char *argv[]) {
     // out-of-place Forward transform
     CUFFT_CALL(cufftExecR2C(planr2c, d_input, d_output));
 
+    scaling_kernel_2<<<1, 128, 0, stream>>>(d_output, (fft_size / 2 + 1), 1, 0.6);
+
     CUDA_RT_CALL(cudaMemcpyAsync(output.data(), d_output, sizeof(output_type) * output.size(),
                                  cudaMemcpyDeviceToHost, stream));
 
     CUDA_RT_CALL(cudaStreamSynchronize(stream));
+
+    
 
     std::printf("Output array after Forward FFT:\n");
     for (auto &i : output) {
@@ -118,12 +136,13 @@ int main(int argc, char *argv[]) {
     // out-of-place Inverse transform
     CUFFT_CALL(cufftExecC2R(planc2r, d_output, d_input));
 
-    CUDA_RT_CALL(cudaMemcpyAsync(output.data(), d_input, sizeof(input_type) * input.size(),
+    CUDA_RT_CALL(cudaMemcpyAsync(input.data(), d_input, sizeof(input_type) * input.size(),
                                  cudaMemcpyDeviceToHost, stream));
 
     std::printf("Output array after Forward FFT, Normalization, and Inverse FFT:\n");
-    for (auto i = 0; i < input.size()/2; i++) {
-        std::printf("%f + %fj\n", output[i].real(), output[i].imag());
+    for (auto i = 0; i < input.size(); i++) {
+        // std::printf("%f + %fj\n", output[i].real(), output[i].imag());
+        std::printf("%f \n", input[i]);
     }
     std::printf("=====\n");
 

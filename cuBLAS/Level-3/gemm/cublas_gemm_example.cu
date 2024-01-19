@@ -56,18 +56,21 @@
 
 #include "cublas_utils.h"
 
-using data_type = double;
+using data_type = float;
 
 int main(int argc, char *argv[]) {
     cublasHandle_t cublasH = NULL;
     cudaStream_t stream = NULL;
 
-    const int m = 2;
-    const int n = 2;
+    const int m = 3;
+    const int n = 4;
     const int k = 2;
+    // const int m = 3;
+    // const int n = 3;
+    // const int k = 2;
     const int lda = 2;
     const int ldb = 2;
-    const int ldc = 2;
+    const int ldc = 3;
     /*
      *   A = | 1.0 | 2.0 |
      *       | 3.0 | 4.0 |
@@ -76,9 +79,12 @@ int main(int argc, char *argv[]) {
      *       | 7.0 | 8.0 |
      */
 
-    const std::vector<data_type> A = {1.0, 2.0, 3.0, 4.0};
-    const std::vector<data_type> B = {5.0, 6.0, 7.0, 8.0};
+    // const std::vector<data_type> A = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    const std::vector<data_type> A = {1.0f, 4.0f, 2.0f, 5.0f, 3.0f, 6.0f};
+    // const std::vector<data_type> B = {5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f};
+    const std::vector<data_type> B = {5.0f, 9.0f, 6.f, 10.0f, 7.0f, 11.0f, 8.0f, 12.0f};
     std::vector<data_type> C(m * n);
+    // std::vector<data_type> C(lda * ldb);
     const data_type alpha = 1.0;
     const data_type beta = 0.0;
 
@@ -86,15 +92,26 @@ int main(int argc, char *argv[]) {
     data_type *d_B = nullptr;
     data_type *d_C = nullptr;
 
-    cublasOperation_t transa = CUBLAS_OP_N;
+    cublasOperation_t transa = CUBLAS_OP_T;
     cublasOperation_t transb = CUBLAS_OP_N;
 
     printf("A\n");
-    print_matrix(m, k, A.data(), lda);
+    // print_matrix(m, k, A.data(), lda);
+    for (int i = 0; i < m*k; i++) {
+        std::printf("%0.2f " , A.data()[i]);
+        if( (i+1) % k == 0)
+            std::printf("\n");
+    }
     printf("=====\n");
 
     printf("B\n");
-    print_matrix(k, n, B.data(), ldb);
+    // print_matrix(k, n, B.data(), ldb);
+    for (int i = 0; i < n*k; i++) {
+        std::printf("%0.2f " , B.data()[i]);
+        if( (i+1) % k == 0)
+            std::printf("\n");
+    }
+
     printf("=====\n");
 
     /* step 1: create cublas handle, bind a stream */
@@ -115,7 +132,8 @@ int main(int argc, char *argv[]) {
 
     /* step 3: compute */
     CUBLAS_CHECK(
-        cublasDgemm(cublasH, transa, transb, m, n, k, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc));
+        cublasSgemm(cublasH, transa, transb, m, n, k, &alpha, d_A, lda, d_B, ldb, &beta, d_C, ldc));
+        // cublasSgemm(cublasH, transa, transb, m, n, k, &alpha, d_B, lda, d_A, ldb, &beta, d_C, ldc));
 
     /* step 4: copy data to host */
     CUDA_CHECK(cudaMemcpyAsync(C.data(), d_C, sizeof(data_type) * C.size(), cudaMemcpyDeviceToHost,
@@ -129,8 +147,16 @@ int main(int argc, char *argv[]) {
      */
 
     printf("C\n");
-    print_matrix(m, n, C.data(), ldc);
+    // print_matrix(m, n, C.data(), ldc);
+     for (int i = 0; i < m*n; i++) {
+    // for (int i = 0; i < lda*ldb; i++) {
+        std::printf("%0.2f " , C.data()[i]);
+        if( (i+1) % m == 0)
+        // if( (i+1) % lda == 0)
+            std::printf("\n");
+    }
     printf("=====\n");
+
 
     /* free resources */
     CUDA_CHECK(cudaFree(d_A));

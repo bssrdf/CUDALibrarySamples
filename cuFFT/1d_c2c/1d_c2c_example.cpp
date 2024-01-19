@@ -53,12 +53,30 @@
 #include <cufft.h>
 #include "cufft_utils.h"
 
+
+__global__
+void scaling_kernel_2(cufftComplex* data, int width, int r_thresh, float scale) {    
+    int col = blockIdx.x*blockDim.x + threadIdx.x;
+    int w = min(width, r_thresh);
+    
+	if(col < w ){
+        data[col].x *= scale;
+        data[col].y *= scale;
+    }
+
+    else if(width-col <= r_thresh){
+        data[col].x *= scale;
+        data[col].y *= scale;
+    }
+
+}
+
 int main(int argc, char *argv[]) {
     cufftHandle plan;
     cudaStream_t stream = NULL;
 
     int fft_size = 8;
-    int batch_size = 2;
+    int batch_size = 1;
     int element_count = batch_size * fft_size;
 
     using scalar_type = float;
@@ -67,7 +85,8 @@ int main(int argc, char *argv[]) {
     std::vector<data_type> data(element_count, 0);
 
     for (int i = 0; i < element_count; i++) {
-        data[i] = data_type(i, -i);
+        // data[i] = data_type(i, -i);
+         data[i] = data_type(i, 0);
     }
 
     std::printf("Input array:\n");
@@ -95,11 +114,16 @@ int main(int argc, char *argv[]) {
      */
     CUFFT_CALL(cufftExecC2C(plan, d_data, d_data, CUFFT_FORWARD));
 
-    // Normalize the data
-    scaling_kernel<<<1, 128, 0, stream>>>(d_data, element_count, 1.f/fft_size);
+    
+    scaling_kernel_2<<<1, 128, 0, stream>>>(d_data, fft_size, 1, 0.6);
+    
 
     // The original data should be recovered after Forward FFT, normalization and inverse FFT
     CUFFT_CALL(cufftExecC2C(plan, d_data, d_data, CUFFT_INVERSE));
+
+
+    // Normalize the data
+    scaling_kernel<<<1, 128, 0, stream>>>(d_data, element_count, 1.f/fft_size);
 
     CUDA_RT_CALL(cudaMemcpyAsync(data.data(), d_data, sizeof(data_type) * data.size(),
                                  cudaMemcpyDeviceToHost, stream));

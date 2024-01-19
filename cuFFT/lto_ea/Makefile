@@ -28,7 +28,9 @@ DEFINES = -DCUDA_ARCH=$(CUDA_ARCH) -DCUDA_PATH=$(CUDA_PATH) -DSOURCE_PATH=${CURD
 ###########################################################################################################
 # Rules
 
-all: bin/r2c_c2r_lto_callback_example bin/r2c_c2r_lto_nvrtc_callback_example bin/r2c_c2r_callback_example
+#all: bin/r2c_c2r_lto_callback_example bin/r2c_c2r_lto_nvrtc_callback_example bin/r2c_c2r_callback_example
+
+all: bin/r2c_c2r_callback_example
 
 # LTO example
 bin/r2c_c2r_lto_callback_example: build/r2c_c2r_lto_callback_example.o build/r2c_c2r_reference.o build/common.o

@@ -56,14 +56,54 @@
 
 using dim_t = std::array<int, 2>;
 
+__global__
+void scaling_kernel_2(cufftComplex* data, int width, int height, int r_thresh, float scale) {
+    int row = blockIdx.y*blockDim.y + threadIdx.y;
+	int col = blockIdx.x*blockDim.x + threadIdx.x;
+    int w = min(width, r_thresh);
+    int h = min(height, r_thresh);
+	if(col < w && row < h ){
+        data[row*width + col].x *= scale;
+        data[row*width + col].y *= scale;
+    }
+    //else if( height - row <= r_thresh && width-col <= r_thresh ){
+      //   if( height > row && width-col <= r_thresh ){*/
+    else if( height - row <= r_thresh && width > col){
+        data[row*width + col].x *= scale;
+        data[row*width + col].y *= scale;
+    }
+}
+
+
+
+__global__
+void scaling_kernel_1(cufftReal* data, int width, int height, float scale) {
+    // const int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    // const int stride = blockDim.x * gridDim.x;
+    // for (auto i = tid; i<element_count; i+= stride) {
+    //     data[tid] *= scale;
+    // }
+
+    int row = blockIdx.y*blockDim.y + threadIdx.y;
+	int col = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(col < width && row < height){
+        data[row*width + col] *= scale;
+    }
+
+
+}
+
+
+
 int main(int argc, char *argv[]) {
     cufftHandle planc2r, planr2c;
     cudaStream_t stream = NULL;
 
-    int nx = 2;
-    int ny = 4;
+    int nx = 5;
+    int ny = 5;
     dim_t fft_size = {nx, ny};
-    int batch_size = 2;
+    unsigned int batch_size = 1;
 
     using scalar_type = float;
     using input_type = scalar_type;
@@ -73,7 +113,7 @@ int main(int argc, char *argv[]) {
     std::vector<output_type> output_complex(batch_size * nx * (ny/2 + 1));
 
     for (int i = 0; i < input_real.size(); i++) {
-        input_real[i] = (scalar_type)i;
+        input_real[i] = (scalar_type)i+1.0f;
     }
 
     std::printf("Input array:\n");
@@ -118,7 +158,24 @@ int main(int argc, char *argv[]) {
 
     CUDA_RT_CALL(cudaStreamSynchronize(stream));
 
-    std::printf("Output array after R2C:\n");
+    std::printf("Output transforms before scaling:\n");
+   
+    for (auto &i : output_complex) {
+        std::printf("%f + %fj\n", i.real(), i.imag());
+    }
+    std::printf("=====\n");
+
+    dim3 dimGrid(ceil(nx/16.0), ceil((ny/2+1)/16.0), batch_size); 
+    dim3 dimBlock(16, 16, 1);
+    scaling_kernel_2<<<dimGrid, dimBlock, 0, stream>>>(d_data_2, nx, ny/2+1, 1, 0.7);
+
+
+    CUDA_RT_CALL(cudaMemcpyAsync(output_complex.data(), d_data_2, sizeof(output_type) * output_complex.size(),
+                                 cudaMemcpyDeviceToHost, stream));
+
+    CUDA_RT_CALL(cudaStreamSynchronize(stream));
+
+    std::printf("Output transforms after scaling:\n");
    
     for (auto &i : output_complex) {
         std::printf("%f + %fj\n", i.real(), i.imag());
@@ -131,7 +188,9 @@ int main(int argc, char *argv[]) {
     // C2R 
     CUFFT_CALL(cufftExecC2R(planc2r, d_data_2, d_data));
 
-    scaling_kernel_1<<<1, 128, 0, stream>>>(d_data, input_real.size(), 1.f/(nx * ny));
+    dim3 dimGrid1(ceil(nx/16.0), ceil(ny/16.0), batch_size); 
+    dim3 dimBlock1 (16, 16, 1);
+    scaling_kernel_1<<<dimGrid1, dimBlock1, 0, stream>>>(d_data, nx, ny, 1.f/(nx * ny));
 
     CUDA_RT_CALL(cudaMemcpyAsync(input_real.data(), d_data, sizeof(input_type) * input_real.size(),
                                  cudaMemcpyDeviceToHost, stream));
